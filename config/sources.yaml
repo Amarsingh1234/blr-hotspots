@@ -1,0 +1,27 @@
+# Data source configuration for blr-hotspots ingestion.
+# Phase 0: bootstrap from blr.today open dataset (ODbL — attribute in UI).
+
+bootstrap:
+  - name: blr.today
+    type: dataset
+    url: https://github.com/blr-today/dataset/releases/latest/download/events.db
+    schedule: "0 */4 * * *"
+    confidence: 0.85
+    license: ODbL-1.0
+    attribution: "Data from blr.today"
+
+# Phase 1 sources — wire collectors as we add them.
+phase_1:
+  - name: trove
+    type: json
+    enabled: true
+    url: https://troveexperiences.com/collections/bangalore/products.json
+    base_url: https://troveexperiences.com
+    confidence: 0.72
+
+  - name: whitebox
+    type: json
+    enabled: true
+    url: https://thewhiteboxco.in/collections/events-of-the-month/products.json
+    base_url: https://thewhiteboxco.in
+    confidence: 0.70

@@ -1,0 +1,45 @@
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0b0f14;
+  --foreground: #e2e8f0;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+.blr-map-shell {
+  background: #0b0f14;
+}
+
+.maplibregl-popup-content {
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+}
+
+.maplibregl-ctrl-group {
+  border-radius: 10px !important;
+  overflow: hidden;
+  background: rgb(15 20 28 / 90%) !important;
+  border: 1px solid rgb(255 255 255 / 10%) !important;
+}
+
+.maplibregl-ctrl-group button {
+  background-color: transparent !important;
+}
+
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid rgb(255 255 255 / 10%) !important;
+}
+
+.maplibregl-ctrl-icon {
+  filter: invert(1) opacity(0.85);
+}

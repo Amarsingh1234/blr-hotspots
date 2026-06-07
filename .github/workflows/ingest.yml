@@ -1,0 +1,30 @@
+# Free scheduled ingestion on GitHub Actions (public repo = unlimited minutes).
+name: ingest
+
+on:
+  schedule:
+    - cron: "0 */4 * * *"
+  workflow_dispatch:
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -e .
+
+      - name: Run ingestion
+        run: python -m pipeline.ingest
+
+      - name: Upload database artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blr-hotspots-db
+          path: data/blr_hotspots.db
+          retention-days: 7

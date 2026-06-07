@@ -1,0 +1,24 @@
+# Render Blueprint — free-tier FastAPI + SQLite
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: blr-hotspots-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -e .
+    startCommand: bash scripts/render_start.sh
+    healthCheckPath: /health
+    envVars:
+      - key: BLR_HOST
+        value: 0.0.0.0
+      - key: BLR_DB_PATH
+        value: /var/data/blr_hotspots.db
+      - key: BLR_RUN_INGEST_ON_START
+        value: "true"
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+    disk:
+      name: blr-hotspots-data
+      mountPath: /var/data
+      sizeGB: 1
