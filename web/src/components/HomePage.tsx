@@ -4,7 +4,14 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { EventCard } from "@/components/EventCard";
+import { SearchBox } from "@/components/SearchBox";
 import { ALL_CATEGORIES, CATEGORY_META } from "@/lib/categories";
+import {
+  eventsInArea,
+  findAreaByQuery,
+  KORAMANGALA,
+  mapTargetForSearch,
+} from "@/lib/areas";
 import { fetchEvents, fetchHotspots } from "@/lib/api";
 import type { Event, EventCategory, EventFilters, HotspotCluster, TimePreset } from "@/lib/types";
 
@@ -27,9 +34,11 @@ export function HomePage() {
   const [filters, setFilters] = useState<EventFilters>({
     time: "all",
     categories: [],
+    query: "",
     sort: "hotspot",
     limit: 150,
   });
+  const [searchInput, setSearchInput] = useState("");
   const [events, setEvents] = useState<Event[]>([]);
   const [hotspots, setHotspots] = useState<HotspotCluster[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -49,7 +58,7 @@ export function HomePage() {
       setSelectedId((current) => {
         if (!data.events.length) return null;
         if (current && data.events.some((e) => e.id === current)) return current;
-        return data.events[0].id;
+        return null;
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load events");
@@ -64,10 +73,43 @@ export function HomePage() {
     loadEvents();
   }, [loadEvents]);
 
-  const mappableCount = useMemo(
-    () => events.filter((e) => e.venue?.lat != null && e.venue?.lon != null).length,
-    [events],
+  const applySearch = useCallback((value: string) => {
+    const trimmed = value.trim();
+    setSearchInput(trimmed);
+    setFilters((prev) => ({ ...prev, query: trimmed }));
+  }, []);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      const trimmed = searchInput.trim();
+      setFilters((prev) => (prev.query === trimmed ? prev : { ...prev, query: trimmed }));
+    }, 250);
+    return () => window.clearTimeout(handle);
+  }, [searchInput]);
+
+  const matchedArea = useMemo(
+    () => findAreaByQuery(filters.query) ?? (filters.query ? null : KORAMANGALA),
+    [filters.query],
   );
+
+  const mapTarget = useMemo(() => {
+    const target = mapTargetForSearch(filters.query, hotspots, events);
+    return {
+      center: target.center,
+      zoom: target.area?.zoom ?? (filters.query ? 12.8 : KORAMANGALA.zoom),
+      key: `${filters.query}|${hotspots.length}|${events.length}|${target.center.join(",")}`,
+    };
+  }, [filters.query, hotspots, events]);
+
+  const headerStats = useMemo(() => {
+    if (filters.query) {
+      return { count: events.length, areaLabel: matchedArea?.label ?? null };
+    }
+    return {
+      count: eventsInArea(events, KORAMANGALA).length,
+      areaLabel: KORAMANGALA.label,
+    };
+  }, [events, matchedArea, filters.query]);
 
   const toggleCategory = (category: EventCategory) => {
     setFilters((prev) => {
@@ -101,87 +143,108 @@ export function HomePage() {
           </p>
         </div>
         <div className="text-right text-xs text-slate-500">
-          {loading ? "Loading…" : `${events.length} events · ${mappableCount} on map`}
+          {loading ? (
+            "Loading…"
+          ) : (
+            <>
+              <span className="text-amber-400/90">
+                {headerStats.count} {filters.query ? "matches" : `in ${headerStats.areaLabel}`}
+              </span>
+              {filters.query && headerStats.areaLabel && (
+                <>
+                  <span className="text-slate-600"> · </span>
+                  <span className="text-slate-400">{headerStats.areaLabel}</span>
+                </>
+              )}
+              <span className="text-slate-600"> · </span>
+              {events.length} on map
+            </>
+          )}
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <aside className="flex w-full shrink-0 flex-col border-b border-white/10 lg:w-[380px] lg:border-b-0 lg:border-r">
-          <div className="space-y-3 border-b border-white/10 p-4">
-            <div className="flex flex-wrap gap-2">
-              {TIME_PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() => setFilters((p) => ({ ...p, time: preset.id }))}
-                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                    filters.time === preset.id
-                      ? "bg-amber-400 text-slate-900"
-                      : "bg-white/10 text-slate-300 hover:bg-white/15"
-                  }`}
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
+      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_auto_1fr] lg:grid-cols-[380px_1fr] lg:grid-rows-[auto_1fr]">
+        <div className="space-y-3 border-b border-white/10 p-4 lg:col-start-1 lg:row-start-1 lg:border-r">
+          <div className="flex flex-wrap gap-2">
+            {TIME_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => setFilters((p) => ({ ...p, time: preset.id }))}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                  filters.time === preset.id
+                    ? "bg-amber-400 text-slate-900"
+                    : "bg-white/10 text-slate-300 hover:bg-white/15"
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+
+            <SearchBox
+              value={searchInput}
+              onChange={setSearchInput}
+              onSubmit={applySearch}
+            />
 
             <div className="flex flex-wrap gap-1.5">
               {ALL_CATEGORIES.map((category) => {
-                const active = filters.categories.includes(category);
-                const meta = CATEGORY_META[category];
-                return (
-                  <button
-                    key={category}
-                    type="button"
-                    onClick={() => toggleCategory(category)}
-                    className={`rounded-full px-2.5 py-1 text-[11px] transition ${
-                      active
-                        ? "bg-white text-slate-900"
-                        : "bg-white/5 text-slate-400 hover:bg-white/10"
-                    }`}
-                  >
-                    {meta.emoji} {meta.label}
-                  </button>
-                );
-              })}
-            </div>
+              const active = filters.categories.includes(category);
+              const meta = CATEGORY_META[category];
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => toggleCategory(category)}
+                  className={`rounded-full px-2.5 py-1 text-[11px] transition ${
+                    active
+                      ? "bg-white text-slate-900"
+                      : "bg-white/5 text-slate-400 hover:bg-white/10"
+                  }`}
+                >
+                  {meta.emoji} {meta.label}
+                </button>
+              );
+            })}
           </div>
+        </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-3">
-            {error && (
-              <div className="mb-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
-                {error}
-                <p className="mt-1 text-xs text-red-300/80">
-                  Make sure the API is running: <code>make serve</code> (port 8001)
-                </p>
-              </div>
-            )}
-
-            {!error && !loading && events.length === 0 && (
-              <p className="p-4 text-center text-sm text-slate-500">No events match these filters.</p>
-            )}
-
-            <div className="space-y-2">
-              {events.map((event) => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  selected={event.id === selectedId}
-                  onSelect={setSelectedId}
-                />
-              ))}
-            </div>
-          </div>
-        </aside>
-
-        <main className="relative min-h-[320px] flex-1 bg-[#0b0f14] p-2 lg:p-3">
+        <main className="relative h-[42vh] min-h-[280px] shrink-0 bg-[#0b0f14] p-2 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:h-auto lg:min-h-0 lg:p-3">
           <EventMap
             events={events}
             hotspots={hotspots}
             selectedId={selectedId}
+            mapTarget={mapTarget}
             onSelect={setSelectedId}
           />
         </main>
+
+        <aside className="min-h-0 overflow-y-auto border-t border-white/10 p-3 lg:col-start-1 lg:row-start-2 lg:border-r lg:border-t-0">
+          {error && (
+            <div className="mb-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+              {error}
+              <p className="mt-1 text-xs text-red-300/80">
+                Make sure the API is running: <code>make serve</code> (port 8001)
+              </p>
+            </div>
+          )}
+
+          {!error && !loading && events.length === 0 && (
+            <p className="p-4 text-center text-sm text-slate-500">No events match these filters.</p>
+          )}
+
+          <div className="space-y-2">
+            {events.map((event) => (
+              <EventCard
+                key={event.id}
+                event={event}
+                selected={event.id === selectedId}
+                onSelect={setSelectedId}
+              />
+            ))}
+          </div>
+        </aside>
       </div>
     </div>
   );

@@ -1,24 +1,32 @@
-# Render Blueprint — free-tier FastAPI + SQLite
-# https://render.com/docs/blueprint-spec
-
+# Render Blueprint — FastAPI + Neon Postgres
 services:
   - type: web
     name: blr-hotspots-api
     runtime: python
     plan: free
+    region: singapore
     buildCommand: pip install -e .
     startCommand: bash scripts/render_start.sh
     healthCheckPath: /health
     envVars:
       - key: BLR_HOST
         value: 0.0.0.0
-      - key: BLR_DB_PATH
-        value: /var/data/blr_hotspots.db
       - key: BLR_RUN_INGEST_ON_START
         value: "true"
       - key: PYTHON_VERSION
         value: "3.12.0"
-    disk:
-      name: blr-hotspots-data
-      mountPath: /var/data
-      sizeGB: 1
+      - key: DATABASE_URL
+        sync: false
+    autoDeploy: true
+
+  - type: web
+    name: blr-hotspots-web
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: cd web && npm install && npm run build
+    startCommand: cd web && npm start
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://blr-hotspots-api.onrender.com
+    autoDeploy: true

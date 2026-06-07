@@ -159,14 +159,9 @@ def run_ingest(store: EventStore | None = None) -> dict[str, Any]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run blr-hotspots ingestion pipeline")
-    parser.add_argument(
-        "--db",
-        default=str(EventStore().db_path),
-        help="SQLite database path (default: data/blr_hotspots.db)",
-    )
-    args = parser.parse_args()
+    parser.parse_args()
 
-    store = EventStore(args.db)
+    store = EventStore()
     stats = run_ingest(store)
 
     print("Ingestion complete:")

@@ -1,5 +1,15 @@
 # Deploy blr-hotspots ($0 stack)
 
+## Live (Render)
+
+| Service | URL |
+|---|---|
+| **Map UI** | https://blr-hotspots-web.onrender.com |
+| **API** | https://blr-hotspots-api.onrender.com |
+| **Health** | https://blr-hotspots-api.onrender.com/health |
+
+Repo: https://github.com/Amarsingh1234/blr-hotspots
+
 ## 1. Push to GitHub
 
 ```bash

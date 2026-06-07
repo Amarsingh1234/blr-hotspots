@@ -8,7 +8,7 @@ Bangalore events aggregator — ingest public feeds, dedupe, rank hotspots, serv
 
 | Layer | Choice | Free tier |
 |---|---|---|
-| **Database** | SQLite file (`data/blr_hotspots.db`) | Unlimited, local or artifact |
+| **Database** | Neon Postgres (`DATABASE_URL`) | Free tier |
 | **Ingestion** | Python + GitHub Actions cron | Free on public repos |
 | **API** | FastAPI | Deploy on Render free / run locally |
 | **Frontend** | Next.js on Vercel (phase 1) | Hobby tier free |
@@ -18,7 +18,7 @@ Bangalore events aggregator — ingest public feeds, dedupe, rank hotspots, serv
 
 ### Why this stack?
 
-- **SQLite** avoids hosted Postgres costs and is enough for ~1–10k events.
+- **Neon Postgres** — persistent, shared by API + GitHub Actions ingest; server-side search.
 - **Python** matches the blr.today ingest ecosystem — easy to add collectors later.
 - **GitHub Actions** replaces a paid cron scheduler (ingest every 4 hours).
 - **No ML, no Redis, no paid APIs** in phase 0.
@@ -44,8 +44,10 @@ cd web && vercel
 
 ```bash
 cd ~/Projects/blr-hotspots
+cp .env.example .env   # add Neon DATABASE_URL — see NEON_SETUP.md
+export $(grep -v '^#' .env | xargs)
 make install
-make ingest       # downloads blr.today dataset, normalizes, scores
+make ingest       # creates schema + ingests blr.today, Trove, White Box
 make serve        # API at http://localhost:8001
 
 # Map UI (separate terminal)
@@ -67,6 +69,9 @@ curl "http://localhost:8001/v1/events?lat=12.9784&lon=77.6408&radius_km=5&catego
 
 # Hotspot clusters (for map bubbles at city zoom)
 curl "http://localhost:8001/v1/hotspots?grid_km=2&limit=20"
+
+# Search (server-side, Postgres)
+curl "http://localhost:8001/v1/events?q=standup%20koramangala&limit=10"
 ```
 
 ## Architecture
@@ -98,9 +103,10 @@ Deploy frontend free on Vercel; set `NEXT_PUBLIC_API_URL` to your Render API URL
 - [x] Phase 0: blr.today ingest + API
 - [x] Phase 0.5: Map UI
 - [x] Phase 1: JSON feeds (Trove, White Box)
-- [x] Phase 3 prep: Deploy configs (`render.yaml`, `DEPLOY.md`, Vercel)
+- [x] Phase 3: Deploy on Render
+- [x] Postgres migration (Neon) + server-side search (`?q=`)
 - [x] Phase 4: Hotspot cluster endpoint (`GET /v1/hotspots`) + map bubbles at city zoom
-- [ ] Deploy live: push repo → Render + Vercel (see `DEPLOY.md`)
+- [x] Deploy live on Render (see `DEPLOY.md`)
 - [ ] Phase 2: BookMyShow — blocked by Cloudflare (deferred)
 
 ## License
