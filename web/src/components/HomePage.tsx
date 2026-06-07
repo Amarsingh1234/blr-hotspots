@@ -93,10 +93,18 @@ export function HomePage() {
   );
 
   const mapTarget = useMemo(() => {
+    if (!filters.query.trim()) {
+      return {
+        center: KORAMANGALA.center,
+        zoom: KORAMANGALA.zoom,
+        key: "default-koramangala",
+      };
+    }
+
     const target = mapTargetForSearch(filters.query, hotspots, events);
     return {
       center: target.center,
-      zoom: target.area?.zoom ?? (filters.query ? 12.8 : KORAMANGALA.zoom),
+      zoom: target.area?.zoom ?? 12.8,
       key: `${filters.query}|${hotspots.length}|${events.length}|${target.center.join(",")}`,
     };
   }, [filters.query, hotspots, events]);

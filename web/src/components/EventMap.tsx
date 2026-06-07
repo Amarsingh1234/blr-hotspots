@@ -135,6 +135,16 @@ function EventMapInner({ events, hotspots, selectedId, mapTarget, onSelect }: Pr
 
   const hotspotsGeojson = useMemo(() => hotspotsToGeoJson(hotspots), [hotspots]);
 
+  const geojsonRef = useRef(geojson);
+  const hotspotsGeojsonRef = useRef(hotspotsGeojson);
+  geojsonRef.current = geojson;
+  hotspotsGeojsonRef.current = hotspotsGeojson;
+
+  const applyMapData = (map: MapInstance) => {
+    map.getSource("hotspots")?.setData(hotspotsGeojsonRef.current);
+    map.getSource("events")?.setData(geojsonRef.current);
+  };
+
   onSelectRef.current = onSelect;
 
   // Init MapLibre once.
@@ -442,6 +452,9 @@ function EventMapInner({ events, hotspots, selectedId, mapTarget, onSelect }: Pr
             });
           }
         }
+
+        // Data may have loaded before the map finished initializing (common on refresh).
+        applyMapData(map);
       });
 
       mapRef.current = map;
@@ -472,8 +485,7 @@ function EventMapInner({ events, hotspots, selectedId, mapTarget, onSelect }: Pr
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !readyRef.current) return;
-    map.getSource("events")?.setData(geojson);
-    map.getSource("hotspots")?.setData(hotspotsGeojson);
+    applyMapData(map);
   }, [geojson, hotspotsGeojson]);
 
   // Pan map when search/area changes — stay at cluster-friendly zoom.

@@ -118,6 +118,11 @@ export function mapTargetForSearch(
   hotspots: Array<{ lat: number; lon: number; event_count: number }>,
   events: Array<{ venue?: { lat?: number | null; lon?: number | null } | null }>,
 ): { center: [number, number]; zoom: number; area: MapArea | null } {
+  const term = normalizeSearchTerm(query);
+  if (!term) {
+    return { center: KORAMANGALA.center, zoom: KORAMANGALA.zoom, area: KORAMANGALA };
+  }
+
   const area = findAreaByQuery(query);
   if (area) {
     return { center: area.center, zoom: area.zoom, area };
