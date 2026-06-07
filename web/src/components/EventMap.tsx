@@ -2,11 +2,13 @@
 
 import { memo, useEffect, useMemo, useRef } from "react";
 
+import { KORAMANGALA } from "@/lib/areas";
 import { eventsToGeoJson } from "@/lib/eventGeoJson";
 import { hotspotsToGeoJson } from "@/lib/hotspotGeoJson";
 import type { Event, HotspotCluster } from "@/lib/types";
 
-const BANGALORE_CENTER: [number, number] = [77.5946, 12.9716];
+const CLUSTER_MAX_ZOOM = 15;
+const EVENTS_MIN_ZOOM = 15;
 const MAP_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
 
 // MapLibre data expressions — maplibre-gl layout types are narrower than runtime.
@@ -40,10 +42,17 @@ const LABEL_OFFSET: any = [
   ["literal", [0, 1.15]],
 ];
 
+type MapTarget = {
+  center: [number, number];
+  zoom: number;
+  key: string;
+};
+
 type Props = {
   events: Event[];
   hotspots: HotspotCluster[];
   selectedId: string | null;
+  mapTarget: MapTarget;
   onSelect: (id: string) => void;
 };
 
@@ -107,7 +116,7 @@ function hotspotPopupHtml(props: {
   </div>`;
 }
 
-function EventMapInner({ events, hotspots, selectedId, onSelect }: Props) {
+function EventMapInner({ events, hotspots, selectedId, mapTarget, onSelect }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapInstance | null>(null);
@@ -115,6 +124,7 @@ function EventMapInner({ events, hotspots, selectedId, onSelect }: Props) {
   const hoverPopupRef = useRef<PopupInstance | null>(null);
   const onSelectRef = useRef(onSelect);
   const lastFlownRef = useRef<string | null>(null);
+  const lastMapTargetRef = useRef<string | null>(null);
   const readyRef = useRef(false);
   const observerRef = useRef<ResizeObserver | null>(null);
 
@@ -141,8 +151,8 @@ function EventMapInner({ events, hotspots, selectedId, onSelect }: Props) {
       const map = new maplibregl.Map({
         container: el,
         style: MAP_STYLE,
-        center: BANGALORE_CENTER,
-        zoom: 11.5,
+        center: KORAMANGALA.center,
+        zoom: KORAMANGALA.zoom,
         fadeDuration: 0,
       });
 
@@ -165,7 +175,7 @@ function EventMapInner({ events, hotspots, selectedId, onSelect }: Props) {
           id: "hotspots-glow",
           type: "circle",
           source: "hotspots",
-          maxzoom: 13.49,
+          maxzoom: CLUSTER_MAX_ZOOM,
           paint: {
             "circle-radius": ["+", ["get", "radius"], 10],
             "circle-color": ["get", "color"],
@@ -178,7 +188,7 @@ function EventMapInner({ events, hotspots, selectedId, onSelect }: Props) {
           id: "hotspots-circles",
           type: "circle",
           source: "hotspots",
-          maxzoom: 13.49,
+          maxzoom: CLUSTER_MAX_ZOOM,
           paint: {
             "circle-radius": ["get", "radius"],
             "circle-color": ["get", "color"],
@@ -193,19 +203,25 @@ function EventMapInner({ events, hotspots, selectedId, onSelect }: Props) {
           id: "hotspots-labels",
           type: "symbol",
           source: "hotspots",
-          maxzoom: 13.49,
+          maxzoom: CLUSTER_MAX_ZOOM,
           layout: {
             "text-field": [
-              "format",
+              "case",
+              ["!=", ["get", "neighborhood"], ""],
+              [
+                "format",
+                ["to-string", ["get", "event_count"]],
+                { "font-scale": 1.1 },
+                "\n",
+                {},
+                ["get", "neighborhood"],
+                { "font-scale": 0.8 },
+              ],
               ["to-string", ["get", "event_count"]],
-              { "font-scale": 1 },
-              " events",
-              { "font-scale": 0.85 },
             ],
             "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
             "text-size": 11,
-            "text-anchor": "top",
-            "text-offset": [0, 0.8],
+            "text-anchor": "center",
             "text-allow-overlap": true,
           },
           paint: {
@@ -219,7 +235,7 @@ function EventMapInner({ events, hotspots, selectedId, onSelect }: Props) {
           id: "events-glow",
           type: "circle",
           source: "events",
-          minzoom: 13.5,
+          minzoom: EVENTS_MIN_ZOOM,
           paint: {
             "circle-radius": ["+", ["get", "radius"], 6],
             "circle-color": ["get", "color"],
@@ -232,7 +248,7 @@ function EventMapInner({ events, hotspots, selectedId, onSelect }: Props) {
           id: "events-circles",
           type: "circle",
           source: "events",
-          minzoom: 13.5,
+          minzoom: EVENTS_MIN_ZOOM,
           layout: {
             "circle-sort-key": ["get", "label_priority"],
           },
@@ -291,7 +307,7 @@ function EventMapInner({ events, hotspots, selectedId, onSelect }: Props) {
           id: "events-labels-selected",
           type: "symbol",
           source: "events",
-          minzoom: 13.5,
+          minzoom: EVENTS_MIN_ZOOM,
           filter: ["==", ["get", "selected"], 1],
           layout: {
             "text-field": [
@@ -371,7 +387,7 @@ function EventMapInner({ events, hotspots, selectedId, onSelect }: Props) {
 
           map.flyTo({
             center: feature.geometry.coordinates as [number, number],
-            zoom: 14,
+            zoom: 15.5,
             duration: 700,
             essential: true,
           });
@@ -460,7 +476,27 @@ function EventMapInner({ events, hotspots, selectedId, onSelect }: Props) {
     map.getSource("hotspots")?.setData(hotspotsGeojson);
   }, [geojson, hotspotsGeojson]);
 
-  // Fly to selected event.
+  // Pan map when search/area changes — stay at cluster-friendly zoom.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !readyRef.current || mapTarget.key === lastMapTargetRef.current) return;
+
+    lastMapTargetRef.current = mapTarget.key;
+    lastFlownRef.current = null;
+
+    const currentZoom = map.getZoom();
+    const targetZoom =
+      currentZoom >= EVENTS_MIN_ZOOM ? mapTarget.zoom : Math.max(currentZoom, mapTarget.zoom);
+
+    map.flyTo({
+      center: mapTarget.center,
+      zoom: targetZoom,
+      duration: 650,
+      essential: true,
+    });
+  }, [mapTarget]);
+
+  // Fly to selected event only when user picks from list or map.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !readyRef.current || !selectedId || selectedId === lastFlownRef.current) {
@@ -473,7 +509,7 @@ function EventMapInner({ events, hotspots, selectedId, onSelect }: Props) {
     lastFlownRef.current = selectedId;
     map.flyTo({
       center: feature.geometry.coordinates as [number, number],
-      zoom: 15.6,
+      zoom: 16,
       duration: 700,
       essential: true,
     });
@@ -486,7 +522,7 @@ function EventMapInner({ events, hotspots, selectedId, onSelect }: Props) {
     >
       <div ref={containerRef} className="h-full w-full" />
       <p className="pointer-events-none absolute bottom-3 right-3 rounded-lg bg-black/50 px-2.5 py-1 text-[11px] text-slate-400 backdrop-blur-sm">
-        Hover dots for name · click to select
+        Cluster counts while zooming · hover dots for name
       </p>
     </div>
   );

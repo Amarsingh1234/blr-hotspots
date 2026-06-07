@@ -14,6 +14,10 @@ function filterParams(filters: EventFilters): URLSearchParams {
   } else if (filters.categories.length > 1) {
     params.set("category", filters.categories.join(","));
   }
+
+  const query = filters.query.trim();
+  if (query) params.set("q", query);
+
   return params;
 }
 

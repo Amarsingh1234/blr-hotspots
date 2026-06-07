@@ -1,3 +1,7 @@
+import os
+
+import pytest
+
 from db.store import EventStore
 from pipeline.enrich import enrich_events
 from pipeline.models import CanonicalEvent, SourceRef
@@ -25,9 +29,9 @@ def _sample_event(title: str, lat: float, lon: float, category: str = "comedy") 
     return event
 
 
-def test_list_hotspot_clusters_groups_nearby_events(tmp_path):
-    db_path = tmp_path / "test.db"
-    store = EventStore(db_path)
+@pytest.mark.skipif(not os.getenv("DATABASE_URL"), reason="DATABASE_URL required for Postgres integration test")
+def test_list_hotspot_clusters_groups_nearby_events():
+    store = EventStore()
     store.init_schema()
 
     events = enrich_events(

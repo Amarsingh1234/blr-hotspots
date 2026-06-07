@@ -4,13 +4,15 @@ cd "$(dirname "$0")/.."
 
 export BLR_HOST="${BLR_HOST:-0.0.0.0}"
 export BLR_PORT="${PORT:-8001}"
-export BLR_DB_PATH="${BLR_DB_PATH:-data/blr_hotspots.db}"
 
-mkdir -p "$(dirname "$BLR_DB_PATH")"
+if [[ -z "${DATABASE_URL:-}" ]]; then
+  echo "ERROR: DATABASE_URL is required (Neon Postgres)." >&2
+  exit 1
+fi
 
-if [[ "${BLR_RUN_INGEST_ON_START:-false}" == "true" ]] || [[ ! -f "$BLR_DB_PATH" ]]; then
-  echo "Running ingestion into $BLR_DB_PATH ..."
-  python -m pipeline.ingest --db "$BLR_DB_PATH"
+if [[ "${BLR_RUN_INGEST_ON_START:-false}" == "true" ]]; then
+  echo "Running ingestion into Neon Postgres ..."
+  python -m pipeline.ingest
 fi
 
 echo "Starting API on ${BLR_HOST}:${BLR_PORT}"

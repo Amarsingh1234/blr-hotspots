@@ -65,6 +65,7 @@ export type HotspotsResponse = {
 export type EventFilters = {
   time: TimePreset;
   categories: EventCategory[];
+  query: string;
   sort: "hotspot" | "time" | "distance";
   limit: number;
 };

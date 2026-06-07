@@ -23,11 +23,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-store = EventStore(os.getenv("BLR_DB_PATH", "data/blr_hotspots.db"))
+store = EventStore()
+
+
+def _iso(value: Any) -> Any:
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return value
 
 
 def _serialize_event(row: dict[str, Any]) -> dict[str, Any]:
-    vibe_tags = row.get("vibe_tags") or "[]"
+    vibe_tags = row.get("vibe_tags") or []
     if isinstance(vibe_tags, str):
         vibe_tags = json.loads(vibe_tags)
 
@@ -44,8 +50,8 @@ def _serialize_event(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": row["id"],
         "title": row["title"],
-        "start_at": row["start_at"],
-        "end_at": row.get("end_at"),
+        "start_at": _iso(row["start_at"]),
+        "end_at": _iso(row.get("end_at")),
         "category": row["category"],
         "vibe_tags": vibe_tags,
         "description": row.get("description"),
@@ -63,7 +69,11 @@ def _serialize_event(row: dict[str, Any]) -> dict[str, Any]:
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    try:
+        store.ping()
+        return {"status": "ok", "database": "postgres"}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"database unavailable: {exc}") from exc
 
 
 @app.get("/v1/meta/categories")
@@ -123,6 +133,7 @@ def _serialize_hotspot(row: dict[str, Any]) -> dict[str, Any]:
 
 @app.get("/v1/hotspots")
 def list_hotspots(
+    q: str | None = Query(None, min_length=1, max_length=120, description="Search text"),
     from_at: str | None = Query(None, alias="from"),
     to_at: str | None = Query(None, alias="to"),
     category: str | None = Query(None, description="Comma-separated categories"),
@@ -131,6 +142,7 @@ def list_hotspots(
 ) -> dict[str, Any]:
     categories = [c.strip() for c in category.split(",")] if category else None
     rows = store.list_hotspot_clusters(
+        q=q,
         from_at=from_at,
         to_at=to_at,
         categories=categories,
@@ -143,6 +155,7 @@ def list_hotspots(
 
 @app.get("/v1/events")
 def list_events(
+    q: str | None = Query(None, min_length=1, max_length=120, description="Search text"),
     lat: float | None = Query(None, description="User latitude"),
     lon: float | None = Query(None, description="User longitude"),
     radius_km: float | None = Query(10.0, ge=0.5, le=100),
@@ -154,6 +167,7 @@ def list_events(
 ) -> dict[str, Any]:
     categories = [c.strip() for c in category.split(",")] if category else None
     rows = store.list_events(
+        q=q,
         from_at=from_at,
         to_at=to_at,
         categories=categories,
