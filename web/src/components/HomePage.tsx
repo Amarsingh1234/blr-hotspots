@@ -135,7 +135,7 @@ export function HomePage() {
   };
 
   return (
-    <div className="flex h-screen flex-col bg-[#0b0f14] text-slate-100">
+    <div className="flex min-h-screen flex-col bg-[#0b0f14] text-slate-100 lg:h-screen lg:overflow-hidden">
       <header className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3 md:px-6">
         <div>
           <h1 className="text-lg font-bold tracking-tight text-white md:text-xl">
@@ -174,7 +174,7 @@ export function HomePage() {
         </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_auto_1fr] lg:grid-cols-[380px_1fr] lg:grid-rows-[auto_1fr]">
+      <div className="flex flex-1 flex-col lg:grid lg:min-h-0 lg:grid-cols-[380px_1fr] lg:grid-rows-[auto_1fr] lg:overflow-hidden">
         <div className="space-y-3 border-b border-white/10 p-4 lg:col-start-1 lg:row-start-1 lg:border-r">
           <div className="flex flex-wrap gap-2">
             {TIME_PRESETS.map((preset) => (
@@ -238,7 +238,7 @@ export function HomePage() {
           />
         </main>
 
-        <aside className="min-h-0 overflow-y-auto border-t border-white/10 p-3 lg:col-start-1 lg:row-start-2 lg:border-r lg:border-t-0">
+        <aside className="border-t border-white/10 p-3 lg:col-start-1 lg:row-start-2 lg:min-h-0 lg:overflow-y-auto lg:border-r lg:border-t-0">
           {error && (
             <div className="mb-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
               {error}
