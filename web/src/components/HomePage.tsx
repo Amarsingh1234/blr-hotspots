@@ -48,12 +48,18 @@ export function HomePage() {
 
   const loadEvents = useCallback(async () => {
     setLoading(true);
-    setWakingApi(true);
     setError(null);
+    let wakingShown = false;
+    const onRetrying = () => {
+      if (!wakingShown) {
+        wakingShown = true;
+        setWakingApi(true);
+      }
+    };
     try {
       const [data, hotspotData] = await Promise.all([
-        fetchEvents(filters),
-        fetchHotspots(filters),
+        fetchEvents(filters, onRetrying),
+        fetchHotspots(filters, onRetrying),
       ]);
       setEvents(data.events);
       setHotspots(hotspotData.hotspots);
@@ -64,8 +70,8 @@ export function HomePage() {
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load events");
-      setEvents([]);
-      setHotspots([]);
+      setEvents((current) => (current.length ? current : []));
+      setHotspots((current) => (current.length ? current : []));
     } finally {
       setLoading(false);
       setWakingApi(false);

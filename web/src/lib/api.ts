@@ -6,19 +6,43 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8001";
 const COLD_START_RETRIES = 8;
 const COLD_START_BASE_MS = 2000;
 
+let apiWarm = false;
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Render free tier: API may sleep 30s–2min; retry until it wakes. */
-async function fetchWithRetry(url: string): Promise<Response> {
+async function fetchOnce(url: string): Promise<Response> {
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status}`);
+  }
+  return response;
+}
+
+/** Render free tier: retry only until the first successful response, then fetch directly. */
+async function fetchWithRetry(
+  url: string,
+  onRetrying?: () => void,
+): Promise<Response> {
+  if (apiWarm) {
+    try {
+      return await fetchOnce(url);
+    } catch {
+      apiWarm = false;
+    }
+  }
+
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt < COLD_START_RETRIES; attempt++) {
+    if (attempt > 0) onRetrying?.();
     try {
       const response = await fetch(url, { cache: "no-store" });
-      if (response.ok) return response;
-      // 502/503 while container is still starting
+      if (response.ok) {
+        apiWarm = true;
+        return response;
+      }
       if (response.status >= 500 && attempt < COLD_START_RETRIES - 1) {
         await sleep(COLD_START_BASE_MS * (attempt + 1));
         continue;
@@ -53,20 +77,32 @@ function filterParams(filters: EventFilters): URLSearchParams {
   return params;
 }
 
-export async function fetchEvents(filters: EventFilters): Promise<EventsResponse> {
+export async function fetchEvents(
+  filters: EventFilters,
+  onRetrying?: () => void,
+): Promise<EventsResponse> {
   const params = filterParams(filters);
   params.set("sort", filters.sort);
   params.set("limit", String(filters.limit));
 
-  const response = await fetchWithRetry(`${API_BASE}/v1/events?${params.toString()}`);
+  const response = await fetchWithRetry(
+    `${API_BASE}/v1/events?${params.toString()}`,
+    onRetrying,
+  );
   return response.json();
 }
 
-export async function fetchHotspots(filters: EventFilters): Promise<HotspotsResponse> {
+export async function fetchHotspots(
+  filters: EventFilters,
+  onRetrying?: () => void,
+): Promise<HotspotsResponse> {
   const params = filterParams(filters);
   params.set("grid_km", "2");
   params.set("limit", "80");
 
-  const response = await fetchWithRetry(`${API_BASE}/v1/hotspots?${params.toString()}`);
+  const response = await fetchWithRetry(
+    `${API_BASE}/v1/hotspots?${params.toString()}`,
+    onRetrying,
+  );
   return response.json();
 }
