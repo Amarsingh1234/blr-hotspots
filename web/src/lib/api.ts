@@ -3,6 +3,38 @@ import { timeRangeForPreset } from "./time";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8001";
 
+const COLD_START_RETRIES = 8;
+const COLD_START_BASE_MS = 2000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Render free tier: API may sleep 30s–2min; retry until it wakes. */
+async function fetchWithRetry(url: string): Promise<Response> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < COLD_START_RETRIES; attempt++) {
+    try {
+      const response = await fetch(url, { cache: "no-store" });
+      if (response.ok) return response;
+      // 502/503 while container is still starting
+      if (response.status >= 500 && attempt < COLD_START_RETRIES - 1) {
+        await sleep(COLD_START_BASE_MS * (attempt + 1));
+        continue;
+      }
+      throw new Error(`API error: ${response.status}`);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error("API unreachable");
+      if (attempt < COLD_START_RETRIES - 1) {
+        await sleep(COLD_START_BASE_MS * (attempt + 1));
+      }
+    }
+  }
+
+  throw lastError ?? new Error("API unreachable");
+}
+
 function filterParams(filters: EventFilters): URLSearchParams {
   const params = new URLSearchParams();
   const range = timeRangeForPreset(filters.time);
@@ -26,14 +58,7 @@ export async function fetchEvents(filters: EventFilters): Promise<EventsResponse
   params.set("sort", filters.sort);
   params.set("limit", String(filters.limit));
 
-  const response = await fetch(`${API_BASE}/v1/events?${params.toString()}`, {
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
-  }
-
+  const response = await fetchWithRetry(`${API_BASE}/v1/events?${params.toString()}`);
   return response.json();
 }
 
@@ -42,13 +67,6 @@ export async function fetchHotspots(filters: EventFilters): Promise<HotspotsResp
   params.set("grid_km", "2");
   params.set("limit", "80");
 
-  const response = await fetch(`${API_BASE}/v1/hotspots?${params.toString()}`, {
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
-  }
-
+  const response = await fetchWithRetry(`${API_BASE}/v1/hotspots?${params.toString()}`);
   return response.json();
 }

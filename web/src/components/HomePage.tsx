@@ -43,10 +43,12 @@ export function HomePage() {
   const [hotspots, setHotspots] = useState<HotspotCluster[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [wakingApi, setWakingApi] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadEvents = useCallback(async () => {
     setLoading(true);
+    setWakingApi(true);
     setError(null);
     try {
       const [data, hotspotData] = await Promise.all([
@@ -66,6 +68,7 @@ export function HomePage() {
       setHotspots([]);
     } finally {
       setLoading(false);
+      setWakingApi(false);
     }
   }, [filters]);
 
@@ -219,6 +222,13 @@ export function HomePage() {
         </div>
 
         <main className="relative h-[42vh] min-h-[280px] shrink-0 bg-[#0b0f14] p-2 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:h-auto lg:min-h-0 lg:p-3">
+          {wakingApi && (
+            <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-2xl bg-[#0b0f14]/80 backdrop-blur-sm lg:inset-3">
+              <p className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300">
+                Waking up API… cluster counts load in a moment
+              </p>
+            </div>
+          )}
           <EventMap
             events={events}
             hotspots={hotspots}
@@ -233,7 +243,7 @@ export function HomePage() {
             <div className="mb-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
               {error}
               <p className="mt-1 text-xs text-red-300/80">
-                Make sure the API is running: <code>make serve</code> (port 8001)
+                The API may be waking from sleep on Render free tier — try refreshing in a minute.
               </p>
             </div>
           )}
